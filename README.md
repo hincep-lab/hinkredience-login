@@ -6,6 +6,9 @@ HINKredience°. Běží na GitHub Pages.
 - `oauth/consent/` – přihlášení a tlačítko „Povolit přístup“
 - `vendor/` – knihovna supabase-js 2.119.0 (licence MIT), uložená zde, aby se
   nenačítala z cizího serveru
+- `app/` – webová verze aplikace HINKredience° (sestavení Flutter web) pro
+  Android i iPhone bez instalace: <https://hincep-lab.github.io/hinkredience-login/app/>.
+  Zdrojový kód je v soukromém repozitáři, sem se kopíruje jen sestavení.
 
 Stránka neobsahuje žádné tajné klíče. Adresa projektu a veřejný
 (*publishable*) klíč jsou určené k použití v prohlížeči; přístup k datům řídí
