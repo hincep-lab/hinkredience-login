@@ -100,6 +100,114 @@
     },
   };
 
+  // ---------------------------------------------------- časovač vaření
+
+  let audio = null;
+
+  /** Zvuk v prohlížeči jde spustit jen po klepnutí – připravit ho předem. */
+  function unlockAudio() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audio) audio = new Ctx();
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
+    return audio;
+  }
+
+  /** Pípání budíku: 3× tři tóny, celkem asi 4 s. */
+  function beep() {
+    const ctx = unlockAudio();
+    if (!ctx) return false;
+    const start = ctx.currentTime + 0.05;
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < 3; i++) {
+        const t = start + round * 1.3 + i * 0.28;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = i === 2 ? 1320 : 990;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.22);
+      }
+    }
+    return true;
+  }
+
+  window.hinkTimer = {
+    /** Volá se při spuštění časovače (klepnutí): odemkne zvuk, požádá o oznámení. */
+    async prepare() {
+      unlockAudio();
+      if (!('Notification' in window)) return false;
+      if (Notification.permission === 'default') {
+        try {
+          await Notification.requestPermission();
+        } catch (_) {}
+      }
+      return Notification.permission === 'granted';
+    },
+
+    /** Časovač doběhl: pípání, vibrace a oznámení prohlížeče. */
+    async ring(title, body, tag) {
+      beep();
+      if (navigator.vibrate) navigator.vibrate([600, 300, 600, 300, 600]);
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const options = {
+        body,
+        tag,
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [600, 300, 600, 300, 600],
+        icon: 'icons/Icon-192.png',
+        badge: 'icons/Icon-192.png',
+        data: { url: location.href },
+      };
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await registration();
+          await reg.showNotification(title, options);
+          return;
+        }
+      } catch (_) {}
+      try {
+        new Notification(title, options);
+      } catch (_) {}
+    },
+
+    /** Zavře oznámení zrušeného nebo potvrzeného časovače. */
+    async close(tag) {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('./');
+        if (!reg) return;
+        for (const n of await reg.getNotifications({ tag })) n.close();
+      } catch (_) {}
+    },
+  };
+
+  // ---------------------------------------------------- aktualizace
+
+  window.hinkUpdate = {
+    /** Text z adresy bez mezipaměti prohlížeče (null = nedostupné). */
+    async fetchText(url) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        return res.ok ? await res.text() : null;
+      } catch (_) {
+        return null;
+      }
+    },
+
+    /** Načte novou verzi (obejde mezipaměť stránky). */
+    reload() {
+      const url = new URL(location.href);
+      url.searchParams.set('v', Date.now().toString(36));
+      location.replace(url.toString());
+    },
+  };
+
   // Když už jsou oznámení povolená, ať je service worker vždy připravený.
   if (supported() && Notification.permission === 'granted') {
     registration().catch(() => {});
